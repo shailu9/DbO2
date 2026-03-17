@@ -55,6 +55,16 @@ fn main() {
                             table_name,
                             columns.join(", "),
                             filter);
+                            // 4. call store to scan the table and print the results
+                            let rows = store.scan_table(&table_name);
+                            // if there are no rows, print a message saying so, otherwise print the rows
+                            if rows.is_empty(){
+                                println!("No rows found in table : {table_name}");
+                            } else {
+                                for row in rows {
+                                    print!("{:?}", row);
+                                }
+                            }
                         }
                     }
                     // INSERT STATEMENT
