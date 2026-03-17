@@ -56,7 +56,16 @@ fn main() {
                             columns.join(", "),
                             filter);
                             // 4. call store to scan the table and print the results
-                            let rows = store.scan_table(&table_name);
+                            // expr.to_string() gives "id = 1" — we'll parse it properly later
+                            // for now, naive split on " = "
+                            let rows :Vec<store::Row> ;
+                            let parts:Vec<&str> = filter.splitn(2," = ").collect();
+                            if parts.len() == 2 {
+                                rows = store.scan_table_with_filter(&table_name, parts[0],parts[1]);
+                            }else {
+                                rows = store.scan_table(&table_name);
+                            }
+                           
                             // if there are no rows, print a message saying so, otherwise print the rows
                             if rows.is_empty(){
                                 println!("No rows found in table : {table_name}");
