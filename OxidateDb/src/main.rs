@@ -118,8 +118,10 @@ fn main() {
                                         for row_values in values.rows{
                                             let mut row = store::Row::new();
                                             for (col, val) in columns.iter().zip(row_values.iter()) {
-                                                row.insert(col.clone(), val.to_string());
-                                                println!("  {} = {}", col, val);
+                                                let clean_val = val.to_string().trim_matches('\'').to_string();
+                                                // Print first and then insert into the row to keep borrow checker happy
+                                                println!("  {} = {}", col, clean_val);
+                                                row.insert(col.clone(), clean_val);
                                             }
                                             store.insert_into_table(&table_name, row);
                                             println!("Inserted row into {table_name}");
@@ -175,9 +177,12 @@ fn main() {
                                 // 3. Print Columns and their Types
                                 let columns : Vec<String> = create_table.columns
                                                                         .iter()
-                                                                        .map(|c|c.name.to_string())
+                                                                        .map(|c| {
+                                                                            println!("  Column: {}, Type: {}", c.name, c.data_type);
+                                                                            c.name.to_string()
+                                                                        })
                                                                         .collect();
-                                println!("Columns:{columns:?}");
+                                //println!("Columns:{columns:?}");
                                 // 4. call store to create the table
                                 store.create_table(&table_name,columns);
                             }
