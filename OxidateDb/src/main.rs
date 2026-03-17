@@ -6,7 +6,7 @@ use sqlparser::ast::{SetExpr};
 mod store; // Import the store module
 
 fn main() {
-    let mut store = store::Store::new(); // Create a new store instance
+    let mut store = store::Store::load(); // Create a new store instance
     let dialect = PostgreSqlDialect {};
 
     println!("OxidateDB v0.1.0 — type SQL or 'exit'");
@@ -44,7 +44,8 @@ fn main() {
                                                         .first()
                                                         .map(|table_with_joins| &table_with_joins.relation)
                                                         .unwrap()
-                                                        .to_string();
+                                                        .to_string()
+                                                        .to_lowercase();
 
                                     // columns 
                                     let columns: Vec<String> = select
@@ -90,7 +91,7 @@ fn main() {
                                 println!("Got an INSERT statement!");
 
                                 // 2. Print the Table Name
-                                let table_name = insert.table.to_string();
+                                let table_name = insert.table.to_string().to_lowercase();
                                 println!("Table Name: {}", table_name);
 
                                 // 3. Print the Columns being Inserted into
@@ -128,6 +129,7 @@ fn main() {
                                         }
                                     }
                                 }
+                                store.save();
                             }
                             // UPDATE STATEMENT
                             sqlparser::ast::Statement::Update (update) => {
@@ -185,6 +187,7 @@ fn main() {
                                 //println!("Columns:{columns:?}");
                                 // 4. call store to create the table
                                 store.create_table(&table_name,columns);
+                                store.save();
                             }
                             other => {
                                 eprintln!("Got someother statement: {other:#?}");
