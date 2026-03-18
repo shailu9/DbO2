@@ -24,7 +24,7 @@ fn main() {
         }
 
         // Here we will parse the SQL and execute it against our store
-        // Matche expression helps us handle both the success and error cases of parsing the SQL
+        // Match expression helps us handle both the success and error cases of parsing the SQL
         match parser::parse_sql(sql) {
             // If parsing is successful, we get a vector of statements that we can iterate over and execute
             Ok(statements) => {

@@ -82,4 +82,32 @@ impl Store {
         std::fs::write("oxidate.db.json", json).unwrap();
         println!("Store saved to disk.");
     }
+
+    // Delete rows from a table that match a filter condition
+    pub fn delete_from_table_with_filter(&mut self, table_name:&str, col:&str, val:&str){
+        let table_name = table_name.to_lowercase();
+        if let Some(rows) = self.tables.get_mut(&table_name){
+            rows.retain(|row| row.get(col).map(|v|v != val).unwrap_or(true));
+            println!("Deleted rows from table '{table_name}' where {col} = {val}");
+        } else {
+            println!("Error: table '{table_name}' does not exist");
+        }
+    }
+
+    // Update rows in a table that match a filter condition
+    pub fn update_table_with_filter(&mut self, table_name:&str, col : &str, val: &str, filter_col : &str, filter_val : &str){
+        let table_name = table_name.to_lowercase();
+        if let Some(rows) = self.tables.get_mut(&table_name) {
+            let mut updated_count = 0;
+            for row in rows.iter_mut() {
+                if row.get(filter_col).map(|v| v == filter_val).unwrap_or(false) {
+                    row.insert(col.to_string(), val.to_string());
+                    updated_count += 1;
+                }
+            }
+            println!("Updated {updated_count} rows in table '{table_name}'");
+        } else {
+            println!("Error: table '{table_name}' does not exist");
+        }
+    }
 }

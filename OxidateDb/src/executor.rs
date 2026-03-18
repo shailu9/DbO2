@@ -115,8 +115,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
         sqlparser::ast::Statement::Update(update) => {
             println!("Got an UPDATE statement!");
             // 2. Print the Table Name
-            let tabel_name = update.table.to_string();
-            println!("Table Name: {}", tabel_name);
+            let table_name = update.table.to_string().to_lowercase();
+            println!("Table Name: {}", table_name);
 
             // 3. Print the Columns being Updated
             println!(
@@ -133,6 +133,25 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
                 None => "none".into(),
             };
             print!("Filter: {}", filter);
+            let filter_parts: Vec<&str> = filter.splitn(2, " = ").collect();
+
+            for assignment in update.assignments {
+                let col = assignment.target.to_string();
+                let val = assignment.value.to_string().trim_matches('\'').to_string();
+
+                if filter_parts.len() == 2 {
+                    store.update_table_with_filter(
+                        &table_name,
+                        &col,
+                        &val,
+                        filter_parts[0].trim(),
+                        filter_parts[1].trim()
+                    );
+                } else {
+                    println!("No valid filter found, skipping update for column {col}");
+                }
+            }
+            store.save();            
         }
         // DELETE STATEMENT
         sqlparser::ast::Statement::Delete(delete) => {
@@ -157,6 +176,13 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
                 None => "none".into(),
             };
             println!("Filter: {}", filter);
+            let parts: Vec<&str> = filter.splitn(2, " = ").collect();
+            if parts.len() == 2 {
+                store.delete_from_table_with_filter(&tabel_name, &parts[0], &parts[1]);
+            } else {
+                println!("No valid filter found, skipping delete");
+            }
+            store.save();
         }
         // CREATE TABLE STATEMENT
         sqlparser::ast::Statement::CreateTable(create_table) => {
