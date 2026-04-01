@@ -1,8 +1,8 @@
-use sqlparser::ast::{ Statement, SetExpr };
-use crate::store::{ self, Store };
+use crate::store::{self, Store};
+use sqlparser::ast::{SetExpr, Statement};
 
 // This function will take a vector of Statements and execute them against the Store
-pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
+pub fn execute_statement(stmt: Statement, store: &mut Store) -> String {
     match stmt {
         // SELECT STATEMENT
         sqlparser::ast::Statement::Query(query) => {
@@ -10,7 +10,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
             let mut output = String::new();
             if let SetExpr::Select(select) = *query.body {
                 //  Table name
-                let table_name = select.from
+                let table_name = select
+                    .from
                     .first()
                     .map(|table_with_joins| &table_with_joins.relation)
                     .unwrap()
@@ -18,10 +19,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
                     .to_lowercase();
 
                 // columns
-                let columns: Vec<String> = select.projection
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect();
+                let columns: Vec<String> =
+                    select.projection.iter().map(|p| p.to_string()).collect();
 
                 // filter
                 let filter = match select.selection {
@@ -50,8 +49,17 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
                 if rows.is_empty() {
                     output.push_str(&format!("Returned {} rows", rows.len()));
                 } else {
+                    let is_select_all = columns.iter().any(|c| c == "*");
                     for row in rows {
-                        output.push_str(&format!("{:?}\n", row));
+                        if is_select_all {
+                            output.push_str(&format!("{:?}\n", row));
+                        } else {
+                            let filtered: std::collections::HashMap<String, String> = row
+                                .into_iter()
+                                .filter(|(k, _)| columns.iter().any(|c| c.to_lowercase() == *k))
+                                .collect();
+                            output.push_str(&format!("{:?}\n", filtered));
+                        }
                     }
                 }
             }
@@ -67,29 +75,20 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
 
             // 3. Print the Columns being Inserted into
             let columns: Vec<String> = if insert.columns.is_empty() {
-                store
-                    .get_columns(&table_name)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        let count = if let Some(src) = &insert.source {
-                            if let SetExpr::Values(v) = src.body.as_ref() {
-                                v.rows
-                                    .first()
-                                    .map(|r| r.len())
-                                    .unwrap_or(0)
-                            } else {
-                                0
-                            }
+                store.get_columns(&table_name).cloned().unwrap_or_else(|| {
+                    let count = if let Some(src) = &insert.source {
+                        if let SetExpr::Values(v) = src.body.as_ref() {
+                            v.rows.first().map(|r| r.len()).unwrap_or(0)
                         } else {
                             0
-                        };
-                        (0..count).map(|i| format!("col{i}")).collect()
-                    })
+                        }
+                    } else {
+                        0
+                    };
+                    (0..count).map(|i| format!("col{i}")).collect()
+                })
             } else {
-                insert.columns
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect()
+                insert.columns.iter().map(|c| c.to_string()).collect()
             };
 
             println!("Columns: {}", columns.join(", "));
@@ -101,8 +100,11 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
                     for row_values in values.rows {
                         let mut row = store::Row::new();
                         for (col, val) in columns.iter().zip(row_values.iter()) {
-                            let clean_val = val.to_string().trim_matches('\'').to_string();
-                            // Print first and then insert into the row to keep borrow checker happy
+                            let val_str = val.to_string();
+                            if val_str.starts_with('"') && val_str.ends_with('"') {
+                                return format!("Error: double quotes are for identifiers, use single quotes for strings");
+                            }
+                            let clean_val = val_str.trim_matches('\'').to_string();
                             println!("  {} = {}", col, clean_val);
                             row.insert(col.clone(), clean_val);
                         }
@@ -124,7 +126,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
             // 3. Print the Columns being Updated
             println!(
                 "Columns: {}",
-                update.assignments
+                update
+                    .assignments
                     .iter()
                     .map(|a| format!("{} = {}", a.target, a.value))
                     .collect::<Vec<String>>()
@@ -140,7 +143,13 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
 
             for assignment in update.assignments {
                 let col = assignment.target.to_string();
-                let val = assignment.value.to_string().trim_matches('\'').to_string();
+                let val_str = assignment.value.to_string();
+                if val_str.starts_with('"') && val_str.ends_with('"') {
+                    return format!(
+                        "Error: double quotes are for identifiers, use single quotes for strings"
+                    );
+                }
+                let val = val_str.trim_matches('\'').to_string();
 
                 if filter_parts.len() == 2 {
                     store.update_table_with_filter(
@@ -148,14 +157,14 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
                         &col,
                         &val,
                         filter_parts[0].trim(),
-                        filter_parts[1].trim()
+                        filter_parts[1].trim(),
                     );
                 } else {
                     println!("No valid filter found, skipping update for column {col}");
                 }
             }
             store.save();
-            format!("Table updated: {}", table_name) 
+            format!("Table updated: {}", table_name)
         }
         // DELETE STATEMENT
         sqlparser::ast::Statement::Delete(delete) => {
@@ -163,16 +172,15 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
             // 2. Print the Table Name
             //let tabel_name = delete.name.to_string();
             //println!("Table Name: {}", tabel_name);
-            let tabel_name = if
-                let sqlparser::ast::FromTable::WithFromKeyword(tables) = &delete.from
-            {
-                tables
-                    .first()
-                    .map(|t| t.relation.to_string())
-                    .unwrap_or("unknown".into())
-            } else {
-                "unknown".into()
-            };
+            let tabel_name =
+                if let sqlparser::ast::FromTable::WithFromKeyword(tables) = &delete.from {
+                    tables
+                        .first()
+                        .map(|t| t.relation.to_string())
+                        .unwrap_or("unknown".into())
+                } else {
+                    "unknown".into()
+                };
             println!("Table Name: {}", tabel_name);
             // 3. Print the Filter Condition
             let filter = match delete.selection {
@@ -198,7 +206,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
             println!("Table Name: {}", table_name);
 
             // 3. Print Columns and their Types
-            let columns: Vec<String> = create_table.columns
+            let columns: Vec<String> = create_table
+                .columns
                 .iter()
                 .map(|c| {
                     println!("  Column: {}, Type: {}", c.name, c.data_type);
