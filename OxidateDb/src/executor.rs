@@ -2,11 +2,12 @@ use sqlparser::ast::{ Statement, SetExpr };
 use crate::store::{ self, Store };
 
 // This function will take a vector of Statements and execute them against the Store
-pub fn execute_statement(stmt: Statement, store: &mut Store) {
+pub fn execute_statement(stmt: Statement, store: &mut Store) ->String {
     match stmt {
         // SELECT STATEMENT
         sqlparser::ast::Statement::Query(query) => {
             println!("Got a SELECT query!");
+            let mut output = String::new();
             if let SetExpr::Select(select) = *query.body {
                 //  Table name
                 let table_name = select.from
@@ -47,13 +48,14 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
 
                 // if there are no rows, print a message saying so, otherwise print the rows
                 if rows.is_empty() {
-                    println!("No rows found in table : {table_name}");
+                    output.push_str(&format!("Returned {} rows", rows.len()));
                 } else {
                     for row in rows {
-                        println!("{:?}", row);
+                        output.push_str(&format!("{:?}\n", row));
                     }
                 }
             }
+            output
         }
         // INSERT STATEMENT
         sqlparser::ast::Statement::Insert(insert) => {
@@ -110,6 +112,7 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
                 }
             }
             store.save();
+            format!("Values inserted into table: {}", table_name)
         }
         // UPDATE STATEMENT
         sqlparser::ast::Statement::Update(update) => {
@@ -151,7 +154,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
                     println!("No valid filter found, skipping update for column {col}");
                 }
             }
-            store.save();            
+            store.save();
+            format!("Table updated: {}", table_name) 
         }
         // DELETE STATEMENT
         sqlparser::ast::Statement::Delete(delete) => {
@@ -183,6 +187,7 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
                 println!("No valid filter found, skipping delete");
             }
             store.save();
+            format!("Rows deleted from table: {}", tabel_name)
         }
         // CREATE TABLE STATEMENT
         sqlparser::ast::Statement::CreateTable(create_table) => {
@@ -204,9 +209,8 @@ pub fn execute_statement(stmt: Statement, store: &mut Store) {
             // 4. call store to create the table
             store.create_table(&table_name, columns);
             store.save();
+            format!("Table created: {}", table_name)
         }
-        other => {
-            eprintln!("Got someother statement: {other:#?}");
-        }
+        other => format!("Unsupported: {other}\n"),
     }
 }

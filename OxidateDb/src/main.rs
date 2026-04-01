@@ -3,8 +3,18 @@ use std::{ io };
 mod store; // Import the store module
 mod parser;
 mod executor;
+mod server;
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    let store = store::Store::load();
+    server::run(store).await;    
+    //repl(); // Start the REPL loop instead of the server, comment out the server code in main.rs and uncomment this line to use the REPL instead
+}
+
+#[warn(dead_code)]
+// This function implements a simple REPL (Read-Eval-Print Loop) for our database
+fn repl() {
     let mut store = store::Store::load(); // Create a new store instance
     println!("OxidateDB v0.1.0 — type SQL or 'exit'");
     // Loop until we get exit command
